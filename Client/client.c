@@ -7,7 +7,7 @@
 
 int timeout() {}
 
-// Need to define file_name (probably do it in main's argument?)
+// Need to define file_name (probably do it in argv?)
 int main(int argc , char *argv[]) {
 	unsigned short PORT_NUMBER = 6111;
 	int DATA_LENGTH = 512;
@@ -98,7 +98,7 @@ int main(int argc , char *argv[]) {
 	        }
 		}
 
-		// If there's any message, continually writes to "output"
+		// If there's any message, continually writes to "output" while keeping track of block_count & byte_count.
 		if( (recv_count > 4) && (block_number == block_count + 1) )
 		{
             block_count++;
@@ -107,9 +107,11 @@ int main(int argc , char *argv[]) {
 		}
 
 		/* Send ACK/NAK to server */
+		// Set ACK OpCode
 		buffer[0] = 0;
 		buffer[4] = 4;
 
+		// Send ACK to indicate client received the file.
 		send_status = sendto( fd, buffer, ACK_LENGTH, 0,
 			(const struct sockaddr *) &serv_addr, sizeof(serv_addr) );
 		if (send_status == -1)  { perror("Acknowledgement failure"); }
@@ -123,4 +125,7 @@ int main(int argc , char *argv[]) {
         printf( "\n" );
         fclose( output );
 	}
+
+	// Close the socket after the loop is over.
+	close(fd);
 }
