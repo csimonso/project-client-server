@@ -15,7 +15,7 @@ int main(int argc , char *argv[]) {
 
 	struct sockaddr_in myaddr, serv_addr;
 	struct hostent *hp;
-	unsigned char buffer[DATA_LENGTH + 4];
+	unsigned char buffer[DATA_LENGTH + ACK_LENGTH];
 
 	// Create a UDP IPv4 socket
 	int fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -109,7 +109,7 @@ int main(int argc , char *argv[]) {
 		/* Send ACK/NAK to server */
 		// Set ACK OpCode
 		buffer[0] = 0;
-		buffer[4] = 4;
+		buffer[1] = 4;
 
 		// Send ACK to indicate client received the file.
 		send_status = sendto( fd, buffer, ACK_LENGTH, 0,
