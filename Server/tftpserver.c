@@ -21,14 +21,14 @@ int main(int argc, char *argv[]){
     
     int nBytes, socketfd;
     char buffer[BUFSIZE], filename[NAMESIZE], mode[NAMESIZE], opcode, *bufindex;
-    struct sockaddr_in myaddr, serveraddr;
+    struct sockaddr_in clientaddr, serveraddr;
     
     /* Create a UDP socket, return the File Descriptor */
     socketfd = socket(AF_INET, SOCK_DGRAM, 0);
     
     if(socketfd < 0) {
-        perror("ERROR");
-        exit();
+        perror("Socket Error");
+        exit(errno);
     }
     
     /* From Discussion Session */
@@ -40,13 +40,23 @@ int main(int argc, char *argv[]){
     /* Assigns a local socket address to the socket FD */
     int x = bind(socketfd,(struct sockaddr *)&serveraddr,sizeof(serveraddr));//Discussion
     
-    memset(buffer,0,BUFSIZE);
+    if(x < 0){
+        perro("Binding Error");
+        exit(errno);
+    }
+    
+    memset(buffer,0,BUFSIZE);//MIGHT NOT NEED THIS
     
     /* Loop in case of other requests */
     while(1) {
         
         /* Receives the message request */
-        nBytes = RecvFrom(socketfd,buffer,BUFSIZE,0,&clientAddr,addr_size);
+        nBytes = recvfrom(socketfd,buffer,BUFSIZE,0,(struct sockaddr *)&clientaddr,sizeof(clientaddr));
+        
+        if(nBytes < 0){
+            perror("Recvfrom ERROR");
+            exit(errno);
+        }
         
         /* Set the buffer index */
         bufindex = buffer;
@@ -65,11 +75,30 @@ int main(int argc, char *argv[]){
         
         if(op_code == OP_RRQ) {
             send(filename,mode, myaddr);
-        }    
+        }
+        
     }
     return 0;
 }
-/* STILL NEED TO FIGURE OUT HOW TO MAKE THIS FUNCTION */
+/* STILL TRYING TO FIGURE THIS OUT */
 void send (char* filename, char* mode, struct sockaddr_in myaddr) {
+    
+    char fbuffer[BUFSIZE];
+    FILE *file;
+    
+    int socketfd = socket(PF_INET,SOCK_DGRAM,0);
+    
+    file = fopen(filename, "r");
+    
+    if(file == NULL) {
+        perror("ERROR Opening File");
+        exit(errno);
+    }
+    
+    memset(fbuffer,0,sizeof(fbuffer));
+    
+    while(1){
+        
+    }
     
 }
