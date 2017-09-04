@@ -14,3 +14,5 @@ receive file from Server)
 Server Implementation:
 https://stackoverflow.com/questions/29626951/tftp-server-is-not-sending-data-packets
 (Still buggy, but I think the solution is down below)
+
+I found this: https://github.com/xlphs/TFTP/blob/master/mytftp.c
