@@ -5,28 +5,29 @@
 #include <string.h>
 #include <signal.h>
 #include <arpa/inet.h>
+#include <setjmp.h>
 
-#define MAX_TIMEOUTS 10
+#define MAX_TIMEOUTS 3
+#define ALARM_TIME 2
 
 
 int timeout = 0;
+jmp_buf timeoutbuf, endbuf;
 
 int time_out(int sig) {
 	switch(sig) {
 		case SIGALRM: {
 			timeout++;
 			if (timeout >= MAX_TIMEOUTS) {
-				timeout = 0;
-				alarm(0);
-				// longjmp(endbuf, sig);
+				exit(0);
 			}
-			// longjmp(timeoutbuf, sig);
+			longjmp(timeoutbuf, sig);
 		} break;
-		case SIGINT: {
-			timeout = 0;
-			alarm(0);
+		//case SIGINT: {
+		//	timeout = 0;
+		//	alarm(0);
 			// longjmp(endbuf, sig);
-		} break;
+		//} break;
 		default: break;
 	}
 }
@@ -83,18 +84,41 @@ int main(int argc , char *argv[]) {
 		buffer[1] = 1;
 		strcpy( &buffer[2], file_name );
 		strcpy( &buffer[2 + strlen(file_name) + 1], "octet" );
+		
+		// Attach the signal handler to timer method
+		signal(SIGALRM, timer);
 
 		/* Receive data after request from server */
 		while(1)
 		{
+			// Set jump for timeout
+			sigsetjmp(timeoutbuf, 1); 
+			// Start the alarm
+			alarm(ALARM_TIME);	  
+			
 			// Send RRQ to server
 			size_t send_status = sendto( fd, buffer, DATA_LENGTH + 4, 0,
 				(struct sockaddr *) &serv_addr, sizeof(serv_addr) );
+			
+			// Reset the alarm and timeout count
+			timeout = 0;
+			alarm(0);
+			
 			if( send_status == -1 ) { perror("Read Request failed\n"); }
 
+			// Set jump for timeout
+			sigsetjmp(timeoutbuf, 1); 
+			// Start the alarm
+			alarm(ALARM_TIME);
+			
 			// Fetch server's response, and stores the length of the message (data) to variable recv_count.
 			recv_count = recvfrom( fd, buffer, DATA_LENGTH + 4, 0,
 				(struct sockaddr *) &serv_addr, sizeof(serv_addr) );
+			
+			// Reset the alarm and timeout count
+			timeout = 0;
+			alarm(0);
+			
 			if( recv_count == -1 ) { perror("Receive failed!"); }
 
 			// Acquire Block Number of Data. Block number is to distinguish between duplicate data.
@@ -120,9 +144,19 @@ int main(int argc , char *argv[]) {
 			buffer[0] = 0;
 			buffer[1] = 4;
 
+			// Set jump for timeout
+			sigsetjmp(timeoutbuf, 1); 
+			// Start the alarm
+			alarm(ALARM_TIME);
+			
 			// Send ACK to indicate client received the file.
 			send_status = sendto( fd, buffer, DATA_LENGTH + 4, 0,
 				(const struct sockaddr *) &serv_addr, sizeof(serv_addr) );
+			
+			// Reset the alarm and timeout count
+			timeout = 0;
+			alarm(0);
+			
 			if (send_status == -1)  { perror("Acknowledgement failure"); }
 
 			// Checks if this is the last packet. If so, break out of the while loop.
@@ -135,9 +169,19 @@ int main(int argc , char *argv[]) {
 		strcpy( &buffer[2], file_name );
 		strcpy( &buffer[2 + strlen(file_name) + 1], "octet" );
 
+		// Set jump for timeout
+		sigsetjmp(timeoutbuf, 1); 
+		// Start the alarm
+		alarm(ALARM_TIME);
+		
 		// Send Write Request
 		size_t send_status = sendto( fd, buffer, DATA_LENGTH + 4, 0,
 			(struct sockaddr *) &serv_addr, sizeof(serv_addr) );
+		
+		// Reset the alarm and timeout count
+		timeout = 0;
+		alarm(0);
+		
 		if( send_status == -1 ) { perror("Write Request failed\n"); }
 
 		// Opens up file specified by file_name to be READ.
@@ -147,12 +191,22 @@ int main(int argc , char *argv[]) {
         }
 
 		while(1) {
+			// Set jump for timeout
+			sigsetjmp(timeoutbuf, 1); 
+			// Start the alarm
+			alarm(ALARM_TIME);
+			
 			// Received ACK to write from server
 			// Might not be the correct implementation
 			recv_count = recvfrom( fd, buffer, DATA_LENGTH + 4, 0,
 				(struct sockaddr *) &serv_addr, sizeof(serv_addr) );
+			
+			// Reset the alarm and timeout count
+			timeout = 0;
+			alarm(0);
+			
 			if( recv_count == -1 ) { perror("Receive failed!"); break; }
-
+		
 			block_number = (buffer[2] << 8) | (buffer[3] & 0x00FF);
 
 			// If no error occured, and block_number is valid,
@@ -163,9 +217,19 @@ int main(int argc , char *argv[]) {
 	            fread( &buffer[4], 1, DATA_LENGTH, output );
 			}
 
+			// Set jump for timeout
+			sigsetjmp(timeoutbuf, 1); 
+			// Start the alarm
+			alarm(ALARM_TIME);
+			
 			// Send chunk to server.
 			send_status = sendto( fd, buffer, DATA_LENGTH + 4, 0,
 				(const struct sockaddr *) &serv_addr, sizeof(serv_addr) );
+			
+			// Reset the alarm and timeout count
+			timeout = 0;
+			alarm(0);
+			
 			if( send_status == -1 ) { perror("Failed to send data\n"); } // Not sure if necessary
 
 			// If length of the file is < 512, break.
