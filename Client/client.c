@@ -6,9 +6,31 @@
 #include <signal.h>
 #include <arpa/inet.h>
 
-int timeout() {}
+#define MAX_TIMEOUTS 10
 
-// Need to define file_name (probably do it in argv?)
+
+int timeout = 0;
+
+int time_out(int sig) {
+	switch(sig) {
+		case SIGALRM: {
+			timeout++;
+			if (timeout >= MAX_TIMEOUTS) {
+				timeout = 0;
+				alarm(0);
+				// longjmp(endbuf, sig);
+			}
+			// longjmp(timeoutbuf, sig);
+		} break;
+		case SIGINT: {
+			timeout = 0;
+			alarm(0);
+			// longjmp(endbuf, sig);
+		} break;
+		default: break;
+	}
+}
+
 /*
  * ARGUMENTS
  * 1 --> "-r" or "-w" to indicate read/write
@@ -62,14 +84,14 @@ int main(int argc , char *argv[]) {
 		strcpy( &buffer[2], file_name );
 		strcpy( &buffer[2 + strlen(file_name) + 1], "octet" );
 
-		// Send RRQ to server
-		size_t send_status = sendto( fd, buffer, DATA_LENGTH + 4, 0,
-			(struct sockaddr *) &serv_addr, sizeof(serv_addr) );
-		if( send_status == -1 ) { perror("Read Request failed\n"); }
-
 		/* Receive data after request from server */
 		while(1)
 		{
+			// Send RRQ to server
+			size_t send_status = sendto( fd, buffer, DATA_LENGTH + 4, 0,
+				(struct sockaddr *) &serv_addr, sizeof(serv_addr) );
+			if( send_status == -1 ) { perror("Read Request failed\n"); }
+
 			// Fetch server's response, and stores the length of the message (data) to variable recv_count.
 			recv_count = recvfrom( fd, buffer, DATA_LENGTH + 4, 0,
 				(struct sockaddr *) &serv_addr, sizeof(serv_addr) );
@@ -147,7 +169,7 @@ int main(int argc , char *argv[]) {
 			if( send_status == -1 ) { perror("Failed to send data\n"); } // Not sure if necessary
 
 			// If length of the file is < 512, break.
-			if(strlen(buffer[4]) < 512) break;
+			if(strlen((const char *) buffer[4]) < 512) break;
 		}
 	} else {
 		// If option is invalid (i.e. -t), print out Invalid Option with list of valid options.
@@ -161,5 +183,6 @@ int main(int argc , char *argv[]) {
 	}
 
 	// Close the socket after the loop is over.
-	close(fd);
+	// https://stackoverflow.com/questions/4160347/close-vs-shutdown-socket
+	shutdown(fd, SHUT_RDWR);
 }
