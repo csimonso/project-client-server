@@ -38,7 +38,7 @@ int time_out(int sig) {
  * 2 --> Filename
  */
 int main(int argc , char *argv[]) {
-	unsigned short PORT_NUMBER = 6111;
+	unsigned short PORT_NUMBER = 54321;
 	int DATA_LENGTH = 512;
 	int ACK_LENGTH  = 4;
 	char *file_name = argv[2];
