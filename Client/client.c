@@ -168,6 +168,9 @@ int main(int argc , char *argv[]) {
 		buffer[1] = 2;
 		strcpy( &buffer[2], file_name );
 		strcpy( &buffer[2 + strlen(file_name) + 1], "octet" );
+		
+		// Attach the signal handler to timer method
+		signal(SIGALRM, timer);
 
 		// Set jump for timeout
 		sigsetjmp(timeoutbuf, 1); 
