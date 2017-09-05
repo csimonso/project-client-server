@@ -18,53 +18,6 @@
 #define BUFSIZE 1024
 #define NAMESIZE 128
 
-erverFiles/", "r");
-    /* Check For Errors */
-    if(file == NULL) {
-        printf("ERROR Opening File");
-        exit(1);
-    }
-
-    /* Fill the buffer with zeros */
-    memset(fbuffer,0,sizeof(fbuffer));
-
-    while(1){
-        /* Read contents of file to the buffer */
-        fsize = fread(fbuffer,sizeof(char),MAXSIZE,file);
-
-        memcpy((char *) fbuffer + 4, fbuffer,fsize);
-
-        /* Send File */
-        sendto(socketfd, fbuffer,BUFSIZE, 0,(struct sockaddr *) &serveraddr, sizeof(serveraddr));
-
-        memset(fbuffer,0,BUFSIZE);
-
-        recvfrom(socketfd,fbuffer,BUFSIZE,0,(struct sockaddr *) &serveraddr, sizeof(serveraddr));
-
-    }
-}
-
-/* NOT FINISHED YET, NEED TO CHECK REC AND SEND, AS WELL AS ACK */
-void receive_file (char* filename, char* mode, struct sockaddr_in serveraddr) {
-
-    char fbuffer[BUFSIZE];
-    int ack = 0;
-    int total = 0;
-    int fsize;
-
-    int socketfd = socket(PF_INET,SOCK_DGRAM,0);
-
-    /* Fill the buffer with zeros */
-    memset(fbuffer,0,sizeof(fbuffer));
-
-    while(1){
-
-        recvfrom(socketfd,fbuffer,BUFSIZE,0,(struct sockaddr *) &serveraddr, sizeof(serveraddr));
-
-        sendto(socketfd, fbuffer,BUFSIZE, 0,(struct sockaddr *) &serveraddr, sizeof(serveraddr));
-
-    }
-}
 int main(int argc, char *argv[]){
 
     int nBytes, socketfd;
@@ -81,56 +34,6 @@ int main(int argc, char *argv[]){
     }
 
     /* From Discussion Session */
-        /* Method used to allocate pages, must be done in the kernel */
-        public static int allocatePage(int vpn, VMProcess process, boolean readOnly){
-                //Initialize ppn to -1 since we have not determined it yet
-                int ppn = -1;
-                //Initialize our clock variable
-                int clock = 0;
-                //Initialize page table index variable
-                int indexPageTable = -1;
-                //Acquire physical pages Lock
-                physicalLock.acquire();
-                //Chekc if this is the first physical page
-                if (physicalPages.size() != 0) {
-                        //Get the ppn of the first page
-                        ppn = physicalPages.pollFirst();
-                }
-                //Release the physical pages lock
-                physicalLock.release();
-                //Acquire kernel page table lock
-                kernelptLock.acquire();
-                //Set our clock variable
-                clock = clockTracker;
-                while (ppn < 0) {
-                        //Update our clock, used formula found online
-                        clockTracker = (clockTracker + 1) % VMKernel.kernelPageTable.length;
-                        //Acquire physical lock
-                        physicalLock.acquire();
-                        //Check that our physical pages is not empty
-                        if (physicalPages.size() != 0) {
-                                //Set the ppn to the first physical page
-                                ppn = physicalPages.pollFirst();
-                                //Release physical lock
-                                physicalLock.release();
-                                break;
-                        }
-                        //Release physical lock
-                        physicalLock.release();
-                        //Set our meta data
-                        VMKernel.MetaData data = VMKernel.kernelPageTable[clockTracker];
-                        //Check if data is pinned
-                        if(!data.pinned){
-                                //Get the entry of the meta data
-                                TranslationEntry entry = data.getEntry();
-                                //Loop through the TLB
-                                for (int i = 0; i < Machine.processor().getTLBSize(); i++) {
-                                        //Read in each TLB entry
-                                        TranslationEntry e = Machine.processor().readTLBEntry(i);
-                                        //Check if the entry vpn matches meta datas
-                                        if(e.vpn == entry.vpn) {
-                                                //Check if entry is valid
-                                                if(e.valid) {
     memset((char*)&serveraddr,0,sizeof(serveraddr));//Discussion
     serveraddr.sin_family = AF_INET;//Discussion
     serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);//Discussion
@@ -163,7 +66,7 @@ int main(int argc, char *argv[]){
         bufindex++;
 
         /* Get the opcode */
-opcode = *bufindex++;
+        opcode = *bufindex++;
 
         /* Get the filename */
         strncpy(filename,bufindex,sizeof(filename)-1);
