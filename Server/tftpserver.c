@@ -1,12 +1,12 @@
-#include <string.h>                                                                                                                                                                               1,2           Top
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <errno.h>
 #include <sys/socket.h>
+#include <string.h>
 #include <netinet/in.h>
+#include <netdb.h>
+#include <arpa/inet.h>
 
-#define PORT_NUMBER 54321
+#define PORT_NUMBER 12345
 
 #define OP_RRQ 1
 #define OP_WRQ 2
@@ -14,131 +14,182 @@
 #define OP_ACK 4
 #define OP_ERROR 5
 
-#define MAXSIZE 512
+#define MAX_DATA 512
 #define BUFSIZE 1024
 #define NAMESIZE 128
+#define TIMEOUT_NUMBER 3
+
+int prev_seq(int curr_seq){
+    if (curr_seq == 0){
+        return '1';
+    }
+    return curr_seq--;
+}
+
+/* Function to send acknowledgement packet */
+void send_ACK(int socketfd, struct sockaddr* addr, socklen_t * addrLen, char seq_num){
+    
+    char buffer[4];
+    
+    buffer[0] = '0';
+    buffer[1] = OP_ACK;
+    buffer[2] = '0';
+    
+    if('0' == seq_num) buffer[3] = '0';
+    else buffer[3] = '1';
+    
+    sendto(socketfd,buffer,4,0,(struct sockaddr *) addr, *addrLen);
+}
+
+/* Function to handle write */
+void write_handler(int socketfd, char* buffer, struct sockaddr* senderAddr, socklen_t * addrLen, FILE* file ){
+    
+    int recvlen, try = 0;
+    int curr_seq = 0;
+    char fbuf[MAX_DATA];
+    
+    while (try < TIMEOUT_NUMBER){
+        
+        recvlen = 0;
+        bzero(buffer, BUFSIZE);
+        
+        recvlen = recvfrom(socketfd,buffer,BUFSIZE,0,(struct sockaddr*)senderAddr,addrLen);
+        
+        if(recvlen > 0){
+            try = 0;
+            
+            if(buffer[1] == OP_DATA){
+                try = 0;
+                memcpy(fbuf, buffer+4, recvlen-4);
+                fwrite(fbuf, 1, recvlen-4, file);
+                if(buffer[3] == '0'){
+                    curr_seq = 0;
+                }
+                else{
+                    curr_seq = 1;
+                }
+                send_ACK(socketfd, senderAddr, addrLen, '0'+ curr_seq);
+                
+                if(curr_seq == '1') {
+                    curr_seq = 0;
+                }
+                else {
+                    curr_seq++;
+                }
+            }
+        }
+        
+        if(recvlen < (MAX_DATA + 4) && buffer[1] == '3' && recvlen > 0){
+            break;
+        }
+        
+        if(recvlen <= 0){
+            send_ACK(socketfd, senderAddr, addrLen, (char)prev_seq(curr_seq));
+            try++;
+        }
+    }
+}
+
+void request_handler(int socketfd, char* recbuffer, char* sendbuffer, struct sockaddr* senderAddr, socklen_t * addrLen, FILE* file ){
+    
+    char fbuf[MAX_DATA];
+    int recvlen, try, ack, nBytes, curr_seq = 0;
+    int read = MAX_DATA;
+    
+    while(read == MAX_DATA) {
+        
+        bzero(sendbuffer, BUFSIZE);
+        read = fread(sendbuffer + 4, 1, MAX_DATA, file);
+        
+        if (read < 1) {
+            break;
+        }
+        
+        try = 0;
+        ack = 0;
+        
+        while (try < TIMEOUT_NUMBER && ack == 0) {
+            
+            sendbuffer[0] = '0';
+            sendbuffer[1] = OP_DATA;
+            sendbuffer[2] = '0';
+            sendbuffer[3] = '0' + curr_seq;
+            
+            nBytes = sendto(socketfd,sendbuffer,read+4, 0, (struct sockaddr *) senderAddr, *addrLen);
+            
+            recvlen = 0;
+            bzero(recbuffer, BUFSIZE);
+            
+            recvlen = recvfrom(socketfd, recbuffer, BUFSIZE, 0, (struct sockaddr *) senderAddr, addrLen);
+            
+            if (recvlen > 0) {
+                
+                try = 0;
+                
+                if(recbuffer[1] == '4') {
+                    ack = 1;
+                    if(curr_seq == '1'){
+                        curr_seq = 0;
+                    }
+                    else {
+                        curr_seq++;
+                    }
+                }
+            }
+            else{
+                try++;
+            }
+        }
+    }
+}
 
 int main(int argc, char *argv[]){
-
-    int nBytes, socketfd;
-    char buffer[BUFSIZE], filename[NAMESIZE], mode[NAMESIZE], opcode, *bufindex;
-    struct sockaddr_in clientaddr, serveraddr;
-
-    /* Create a UDP socket, return the File Descriptor */
+    
+    int read,socketfd,nBytes,recvlen,request;
+    
+    char fileName[NAMESIZE];
+    char recbuff[BUFSIZE];
+    char sendbuff[BUFSIZE];
+    
+    FILE *file;
+    
+    struct sockaddr_in clientAddress, serverAddress;
+    
+    socklen_t addrLen = sizeof(clientAddress);
+    
     socketfd = socket(AF_INET, SOCK_DGRAM, 0);
-
-    /* Check for Errors */
-    if(socketfd < 0) {
-        printf("Socket Error");
-        exit(1);
-    }
-
-    /* From Discussion Session */
-    memset((char*)&serveraddr,0,sizeof(serveraddr));//Discussion
-    serveraddr.sin_family = AF_INET;//Discussion
-    serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);//Discussion
-    serveraddr.sin_port = htons(PORT_NUMBER);//Discussion
-
-    /* Assigns a local socket address to the socket FD */
-    int x = bind(socketfd,(struct sockaddr *)&serveraddr,sizeof(serveraddr));//Discussion
-
-    /* Checks for errors */
-    if(x < 0){
-        printf("Binding Error");
-        exit(1);
-    }
-
-    /* Loop in case of other requests */
-    while(1) {
-
-        /* Receives the message request */
-        nBytes = recvfrom(socketfd,buffer,BUFSIZE,0,(struct sockaddr *)&clientaddr,sizeof(clientaddr));
-
-        /* Check for Errors */
-        if(nBytes < 0){
-            printf("Recvfrom ERROR");
-            exit(1);
+    
+    memset((char *) &clientAddress, 0, sizeof(clientAddress));
+    clientAddress.sin_family = AF_INET;
+    clientAddress.sin_addr.s_addr = htonl(INADDR_ANY);
+    clientAddress.sin_port = htons(PORT_NUMBER);
+    
+    nBytes = bind(socketfd, (struct sockaddr *) &clientAddress, sizeof(clientAddress));
+    
+    while(1){
+        bzero(recbuff, BUFSIZE);
+        bzero(sendbuff, BUFSIZE);
+        
+        recvlen = 0;
+        recvlen = recvfrom(socketfd, recbuff, BUFSIZE, 0, (struct sockaddr *) &clientAddress, &addrLen);
+        
+        if(recvlen > 0){
+            
+            if(recbuff[1] == OP_RRQ){
+                sprintf(fileName, "/serverFiles/%s", (recbuff+2));
+                file = fopen(fileName, "rb");
+                request_handler(socketfd, recbuff, sendbuff, (struct sockaddr*)&clientAddress, &addrLen, file);
+                fclose(file);
+            }
+            else if(recbuff[1] == OP_WRQ){
+                sprintf(fileName, "/serverFiles/%s", (recbuff+2));
+                file = fopen(fileName, "w");
+                send_ACK(socketfd, (struct sockaddr*)&clientAddress, &addrLen, '0');
+                write_handler(socketfd, recbuff,(struct sockaddr*)&clientAddress, &addrLen, file);
+                fclose(file);
+            }
         }
-
-        /* Set the buffer index */
-        bufindex = buffer;
-        /* Increment the index to begin parsing */
-        bufindex++;
-
-        /* Get the opcode */
-        opcode = *bufindex++;
-
-        /* Get the filename */
-        strncpy(filename,bufindex,sizeof(filename)-1);
-
-        /* Get the mode */
-        strncpy(mode,bufindex,sizeof(mode)-1);
-
-        if(opcode == OP_RRQ) {
-            send_file(filename,mode, serveraddr);
-        }
-        if(opcode == OP_WRQ){
-            receive_file(filename,mode,serveraddr);
-        }
-
     }
     return 0;
-}
-
-void send_file (char* filename, char* mode, struct sockaddr_in serveraddr) {
-
-    char fbuffer[BUFSIZE];
-    int ack = 0;
-    int total = 0;
-    int fsize;
-
-    int socketfd = socket(PF_INET,SOCK_DGRAM,0);
-
-    /* Open File */
-    FILE* file = fopen("/serverFiles/", "r");
-    /* Check For Errors */
-    if(file == NULL) {
-        printf("ERROR Opening File");
-        exit(1);
-    }
-
-    /* Fill the buffer with zeros */
-    memset(fbuffer,0,sizeof(fbuffer));
-
-    while(1){
-        /* Read contents of file to the buffer */
-        fsize = fread(fbuffer,sizeof(char),MAXSIZE,file);
-
-        memcpy((char *) fbuffer + 4, fbuffer,fsize);
-
-        /* Send File */
-        sendto(socketfd, fbuffer,BUFSIZE, 0,(struct sockaddr *) &serveraddr, sizeof(serveraddr));
-
-        memset(fbuffer,0,BUFSIZE);
-
-        recvfrom(socketfd,fbuffer,BUFSIZE,0,(struct sockaddr *) &serveraddr, sizeof(serveraddr));
-
-    }
-}
-    /* NOT FINISHED YET, NEED TO CHECK REC AND SEND, AS WELL AS ACK */
-void receive_file (char* filename, char* mode, struct sockaddr_in serveraddr) {
-
-    char fbuffer[BUFSIZE];
-    int ack = 0;
-    int total = 0;
-    int fsize;
-
-    int socketfd = socket(PF_INET,SOCK_DGRAM,0);
-
-    /* Fill the buffer with zeros */
-    memset(fbuffer,0,sizeof(fbuffer));
-
-    while(1){
-
-        recvfrom(socketfd,fbuffer,BUFSIZE,0,(struct sockaddr *) &serveraddr, sizeof(serveraddr));
-
-        sendto(socketfd, fbuffer,BUFSIZE, 0,(struct sockaddr *) &serveraddr, sizeof(serveraddr));
-
-    }
 }
                                                                                                                                       1,2           Top
