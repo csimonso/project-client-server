@@ -6,7 +6,8 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 
-#define PORT_NUMBER 54321
+//#define PORT_NUMBER 54321
+#define PORT_NUMBER 61011
 
 #define OP_RRQ 1
 #define OP_WRQ 2
@@ -159,8 +160,12 @@ void request_handler(int socketfd,char* recbuff,char* sendbuff,struct sockaddr* 
 /* Main function to run program and make function calls */
 int main(int argc, char *argv[]){
     
+    printf("ENTERING MAIN");
+
     /* Variable Declarations */
-    char fileName[NAMESIZE], sendbuf[BUFSIZE], recbuf[BUFSIZE];
+    //char fileName[NAMESIZE];
+    char *fileName = argv[2];
+    char sendbuf[BUFSIZE], recbuf[BUFSIZE];
     
     FILE *file;
     int res,socketfd,request,nBytes,recvlen;
@@ -170,7 +175,9 @@ int main(int argc, char *argv[]){
     
     /* Create a new socket */
     socketfd = socket(AF_INET, SOCK_DGRAM, 0);
-    
+    if(socketfd < 0 ) {
+ 	printf("SOCKET ERROR");
+    }    
     
     //memset((char *) &clientAddr, 0, sizeof(clientAddr));
     //clientAddr.sin_family = AF_INET;
@@ -201,7 +208,7 @@ int main(int argc, char *argv[]){
         
         /* Cancatenate string for autograder submission */
         //fileName = strcat("/clientFiles/", argv[2]);
-        sprintf(fileName, "/clientFiles/%s", argv[2]);
+        //sprintf(fileName, "/clientFiles/%s", argv[2]);
         
         /* Zero out the buffer */
         bzero(sendbuf, BUFSIZE);
@@ -239,10 +246,12 @@ int main(int argc, char *argv[]){
     }
     /* Checks if read mode */
     else if(strcmp(argv[1], "-r") == 0){
-        
+
+        printf("STARTING r REQUEST");
+
         /* Cancatenate string for autograder submission */
         //fileName = strcat("/clientFiles/", argv[2]);
-        sprintf(fileName, "/clientFiles/%s", argv[2]);
+        //sprintf(fileName, "/clientFiles/%s", argv[2]);
         
         /* Open file */
         file = fopen(fileName, "w");
