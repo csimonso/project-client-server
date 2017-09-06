@@ -6,7 +6,8 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 
-#define PORT_NUMBER 12345
+//#define PORT_NUMBER 12345
+#define PORT_NUMBER 61011
 
 #define OP_RRQ 1
 #define OP_WRQ 2
@@ -144,10 +145,13 @@ void request_handler(int socketfd, char* recbuffer, char* sendbuffer, struct soc
 }
 
 int main(int argc, char *argv[]){
+
+    printf("ENTERING MAIN");
     
     int read,socketfd,nBytes,recvlen,request;
     
-    char fileName[NAMESIZE];
+    //char fileName[NAMESIZE];
+    char *fileName;
     char recbuff[BUFSIZE];
     char sendbuff[BUFSIZE];
     
@@ -176,13 +180,15 @@ int main(int argc, char *argv[]){
         if(recvlen > 0){
             
             if(recbuff[1] == OP_RRQ){
-                sprintf(fileName, "/serverFiles/%s", (recbuff+2));
+                //sprintf(fileName, "/serverFiles/%s", (recbuff+2));
+                fileName = recbuff+2;
                 file = fopen(fileName, "rb");
                 request_handler(socketfd, recbuff, sendbuff, (struct sockaddr*)&clientAddress, &addrLen, file);
                 fclose(file);
             }
             else if(recbuff[1] == OP_WRQ){
-                sprintf(fileName, "/serverFiles/%s", (recbuff+2));
+                //sprintf(fileName, "/serverFiles/%s", (recbuff+2));
+                fileName = recbuff+2;
                 file = fopen(fileName, "w");
                 send_ACK(socketfd, (struct sockaddr*)&clientAddress, &addrLen, '0');
                 write_handler(socketfd, recbuff,(struct sockaddr*)&clientAddress, &addrLen, file);
