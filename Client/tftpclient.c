@@ -1,10 +1,12 @@
 #include <stdio.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <string.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <setjmp.h>
 
 #define PORT_NUMBER 54321
 //#define PORT_NUMBER 61111
@@ -19,6 +21,25 @@
 #define BUFSIZE 1024
 #define NAMESIZE 128
 #define TIMEOUT_NUMBER 3
+#define MAX_TIMEOUTS 3
+#define ALARM_TIME 2
+
+int volatile timeout = 0;
+jmp_buf timeoutbuf;
+
+//void time_out(int sig) {
+//	fprintf(stdout, "timed out\n");
+//	signal(SIGALRM, time_out);
+//        timeout++;
+//        if(timeout >= MAX_TIMEOUTS) {
+//            exit(1);
+//        }
+//	else {
+//	    alarm(0);
+//	    longjmp(timeoutbuf, 3);	
+//        }
+//}
+
 
 /* Function to Send Acknowledgment Packet */
 void send_ACK(int socketfd, struct sockaddr* addr, socklen_t * addrLen, char seq_num){
@@ -51,7 +72,9 @@ void write_handler(int socketfd, char* buffer, struct sockaddr* addr, socklen_t 
     int try = 0;
     int curr_seq = 0;
     char fbuffer[MAX_DATA];
-    
+    struct timeval time_out;
+    time_out.tv_sec = 3;
+    time_out.tv_usec = 0;
     /* Loop the max number of times */
     while (try < TIMEOUT_NUMBER){
 	fprintf(stdout, "ENTERED LOOP\n");
@@ -59,8 +82,21 @@ void write_handler(int socketfd, char* buffer, struct sockaddr* addr, socklen_t 
         recvlen = 0;
         /* Zero out buffer */
         bzero(buffer, BUFSIZE);
+	
+	
+	setsockopt(socketfd,SOL_SOCKET,SO_RCVTIMEO,&time_out,sizeof(time_out));
         /* Receive from socket */
         recvlen = recvfrom(socketfd,buffer, BUFSIZE, 0,(struct sockaddr*)addr, addrLen);
+
+	fprintf(stdout, "Receive pass\n");
+
+	if(recvlen == -1) {
+	     fprintf(stdout, "Failed send\n");
+
+	 }
+
+        //alarm(0);
+
         fprintf(stdout,"REV LENGTH = %i\n", recvlen);
         if(recvlen > 0) {
             /* Reset */
@@ -234,6 +270,7 @@ int main(int argc, char *argv[]){
             
             /* Receive message from socket */
             recvlen = recvfrom(socketfd,recbuf,BUFSIZE,0,(struct sockaddr*)&serverAddr, &addrLen);
+
             fprintf(stdout, "RECVFROM MAIN = %i\n", recvlen);
             /* Checks if acknowedge received */
             if(recvlen > 0 && recbuf[1] == '4') request = 1;
@@ -273,9 +310,25 @@ int main(int argc, char *argv[]){
 	if(sendbuf[1] == '1'){
 		fprintf(stdout, "OPCODE IS 1\n");
 	} 
+
+	
+
         /* Send message on socket */
         nBytes = sendto(socketfd, sendbuf, strlen(sendbuf), 0, (struct sockaddr*)&serverAddr, addrLen);
          
+	if(nBytes == -1) {
+	     fprintf(stdout, "Failed send\n");
+	     timeout++;
+             if(timeout >= MAX_TIMEOUTS) {
+                exit(1);
+             }
+	     else {
+	         longjmp(timeoutbuf, 1);	
+             }
+	 }
+
+        alarm(0);
+
         //fprintf(stdout, "SENDTO RETURN VAL = %i\n", nBytes);
     	fprintf(stdout, "ENTERING WRITE HANDLER\n");
         /* Handle write request */
