@@ -6,8 +6,8 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 
-//#define PORT_NUMBER 12345
-#define PORT_NUMBER 61111
+#define PORT_NUMBER 12345
+//#define PORT_NUMBER 61111
 
 #define OP_RRQ 1
 #define OP_WRQ 2
@@ -33,13 +33,14 @@ void send_ACK(int socketfd, struct sockaddr* addr, socklen_t * addrLen, char seq
     char buffer[4];
     
     buffer[0] = '0';
-    buffer[1] = OP_ACK;
+    buffer[1] = '4';
     buffer[2] = '0';
     
     if('0' == seq_num) buffer[3] = '0';
     else buffer[3] = '1';
     
     sendto(socketfd,buffer,4,0,(struct sockaddr *) addr, *addrLen);
+    fprintf(stdout, "ACK SENT\n");
 }
 
 /* Function to handle write */
@@ -55,20 +56,22 @@ void write_handler(int socketfd, char* buffer, struct sockaddr* senderAddr, sock
         bzero(buffer, BUFSIZE);
         
         recvlen = recvfrom(socketfd,buffer,BUFSIZE,0,(struct sockaddr*)senderAddr,addrLen);
-        
+	fprintf(stdout, "WRITE HANDLER RECVLEN = %i\n", recvlen);        
         if(recvlen > 0){
             try = 0;
             
-            if(buffer[1] == OP_DATA){
+            if(buffer[1] == '3'){
                 try = 0;
                 memcpy(fbuf, buffer+4, recvlen-4);
                 fwrite(fbuf, 1, recvlen-4, file);
+		fprintf(stdout, "FINISHED FWRITE INSIDE WRITE HANDLER\n");
                 if(buffer[3] == '0'){
                     curr_seq = 0;
                 }
                 else{
                     curr_seq = 1;
                 }
+		fprintf(stdout, "SEND ACK FROM INSIDE WRITE HANDLER DATA OPCODE\n");
                 send_ACK(socketfd, senderAddr, addrLen, '0'+ curr_seq);
                 
                 if(curr_seq == '1') {
@@ -85,6 +88,7 @@ void write_handler(int socketfd, char* buffer, struct sockaddr* senderAddr, sock
         }
         
         if(recvlen <= 0){
+	    fprintf(stdout, "SENDING ACK INSIDE WRITE HANDLER\n");
             send_ACK(socketfd, senderAddr, addrLen, (char)prev_seq(curr_seq));
             try++;
         }
@@ -112,17 +116,17 @@ void request_handler(int socketfd, char* recbuffer, char* sendbuffer, struct soc
         while (try < TIMEOUT_NUMBER && ack == 0) {
             
             sendbuffer[0] = '0';
-            sendbuffer[1] = OP_DATA;
+            sendbuffer[1] = '3';
             sendbuffer[2] = '0';
             sendbuffer[3] = '0' + curr_seq;
             
             nBytes = sendto(socketfd,sendbuffer,read+4, 0, (struct sockaddr *) senderAddr, *addrLen);
-            
+    	    fprintf(stdout, "SENDTO REQUEST = %i\n", nBytes);        
             recvlen = 0;
             bzero(recbuffer, BUFSIZE);
             
             recvlen = recvfrom(socketfd, recbuffer, BUFSIZE, 0, (struct sockaddr *) senderAddr, addrLen);
-            
+            fprintf(stdout, "RECVFROM REQUEST = %i\n", recvlen);
             if (recvlen > 0) {
                 
                 try = 0;
@@ -150,8 +154,8 @@ int main(int argc, char *argv[]){
     
     int read,socketfd,nBytes,recvlen,request;
     
-    //char fileName[NAMESIZE];
-    char *fileName;
+    char fileName[NAMESIZE];
+    //char *fileName;
     char recbuff[BUFSIZE];
     char sendbuff[BUFSIZE];
     
@@ -185,20 +189,24 @@ int main(int argc, char *argv[]){
         if(recvlen > 0){
             
             if(recbuff[1] == '1'){
-		fprintf(stdout, "INSIDE IF");
-                //sprintf(fileName, "/serverFiles/%s", (recbuff+2));
-                fileName = recbuff+2;
+		fprintf(stdout, "INSIDE IF FOR R Request\n");
+                sprintf(fileName, "/serverFiles/%s", (recbuff+2));
+                //fileName = recbuff+2;
                 file = fopen(fileName, "rb");
                 request_handler(socketfd, recbuff, sendbuff, (struct sockaddr*)&clientAddress, &addrLen, file);
                 fclose(file);
             }
-            else if(recbuff[1] == OP_WRQ){
-                //sprintf(fileName, "/serverFiles/%s", (recbuff+2));
-                fileName = recbuff+2;
+            else if(recbuff[1] == '2'){
+		fprintf(stdout, "INSIDE IF FOR W REQUEST\n");
+                sprintf(fileName, "/serverFiles/%s", (recbuff+2));
+                //fileName = recbuff+2;
                 file = fopen(fileName, "w");
+		fprintf(stdout, "SENDING ACK FOR W REQUEST\n");
                 send_ACK(socketfd, (struct sockaddr*)&clientAddress, &addrLen, '0');
+		fprintf(stdout, "ENTERING WRITE HANDLER FOR W REQUEST\n");
                 write_handler(socketfd, recbuff,(struct sockaddr*)&clientAddress, &addrLen, file);
                 fclose(file);
+		break;
             }
         }
     }
