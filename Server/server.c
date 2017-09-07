@@ -117,7 +117,7 @@ int main(int argc , char *argv[]) {
 		
 		if(connected == 1) {
 			// Set jump for timeout
-			setjmp(timeoutbuf, 1);
+			setjmp(timeoutbuf);
 			signal(SIGALRM, time_out);
 			// Set the alarm
 			alarm(ALARM_TIME);
