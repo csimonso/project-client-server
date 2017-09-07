@@ -6,17 +6,22 @@
 #include <signal.h>
 #include <arpa/inet.h>
 #include <sys/types.h>
+#include <setjmp.h>
 
-#define MAX_TIMEOUTS 10
+#define MAX_TIMEOUTS 3
+#define ALARM_TIME 2
 
 // TODO:
 // 1. Duplicate Messages (beefy I think)
 // 2. Timeout for server (related to point #1)
 // 3. Simple filename
 
-int timeout = 0;
+int volatile timeout = 0;
+int connected = 0;
+jmp_buf timeoutbuf;
 
 int time_out(int sig) {
+	signal(SIGALRM, time_out);
 	/* switch(sig) {
 		case SIGALRM: {
 			timeout++;
@@ -108,9 +113,38 @@ int main(int argc , char *argv[]) {
 		// Receive Requests, ACK (in case of Read) or Data (in case of Write) from Client.
 		// Note that recvfrom will populate client_addr.
 		bzero(buffer, 516);
+		timeout = 0;
+		
+		if(connected == 1) {
+			// Set jump for timeout
+			setjmp(timeoutbuf);
+			signal(SIGALRM, time_out);
+			// Set the alarm
+			alarm(ALARM_TIME);
+		}
+		
 		recv_count = recvfrom( fd, buffer, DATA_LENGTH + 4, 0,
 				(struct sockaddr *) &client_addr, &len );
-		if( recv_count == -1 ) { printf("Error!\n"); perror("Receive failed!"); }
+		if( recv_count == -1 ) { 
+			timeout++;
+			printf("Error!\n"); 
+			perror("Receive failed!");
+			
+			if(timeout >= MAX_TIMEOUTS) {
+				// TODO: Do things to close the connection and allow for another client to reconnect
+				connected = 0;
+				continue;
+			}
+			else {
+				longjmp(timeoutbuf, 1);
+			}
+		}
+		
+		// Reset the alarm
+		alarm(0);
+		// Already received RRQ or WRQ
+		connected = 1;
+		
 		printf("Request/packet received!\n");
 
 		// Extract opcode to determine if buffer contains Requests/ACK/Data (refer desc. above)
@@ -163,10 +197,33 @@ int main(int argc , char *argv[]) {
 	    		// fread( &buffer[4], 1, filesize, output );
 	    	// }
 
+		// Reset timeouts
+		timeout = 0;
+		// Set jump for timeout
+		setjmp(timeoutbuf);
+		signal(SIGALRM, time_out);
+		// Set the alarm
+		alarm(ALARM_TIME);
+			
 	        // Sends data to client
 	        send_status = sendto( fd, buffer, DATA_LENGTH + 4, 0,
 				(struct sockaddr *) &client_addr, sizeof(struct sockaddr_in) );
-	        if( send_status == -1 ) { perror("Failed to send data\n"); } // No need for terminating condition
+	        if( send_status == -1 ) { 
+			timeout++;
+			perror("Failed to send data\n");
+			
+			if(timeout >= MAX_TIMEOUTS) {
+				// TODO: Do things to end the connection but let another client
+			}
+			else {
+				longjmp(timeoutbuf, 1);
+			}
+		} 
+		// No need for terminating condition	
+		// Reset the alarm
+		alarm(0);
+		timeout = 0;
+			
 		} else if( opcode == 2 || opcode == 3 ) {
 			printf("Write request\n");
 			// If Client just sent a WRQ, simply sends ACK #0
@@ -199,10 +256,34 @@ int main(int argc , char *argv[]) {
 		        printf("File opened!\n");
 
 		        printf("Sending VERY FIRST ACK!\n");
+				
+			// Reset timeouts
+			timeout = 0;
+			// Set jump for timeout
+			setjmp(timeoutbuf);
+			signal(SIGALRM, time_out);
+			// Set the alarm
+			alarm(ALARM_TIME);
+			
 		        // Send ACK #0 to Client to let it know, it can start transmitting file.
 		        send_status = sendto( fd, buffer, DATA_LENGTH + 4, 0,
 					(struct sockaddr *) &client_addr, sizeof(struct sockaddr_in) );
-		        if( send_status == -1 ) { perror("Failed to send ACK 0\n"); }
+		        if( send_status == -1 ) { 
+				timeout++;
+				perror("Failed to send ACK 0\n");
+				
+				if(timeout >= MAX_TIMEOUTS) {
+					// TODO: Do something to end the connection and let another client still connect	
+				}
+				else {
+					longjmp(timeoutbuf, 1);
+				}
+			}
+			
+			// Reset alarm
+			alarm(0);
+			timeout = 0;
+				
 			} else {
 		        // Write entries/data in buffer to the file that was opened earlier.
 		        printf("Writing buffer to file!\n");
@@ -226,10 +307,31 @@ int main(int argc , char *argv[]) {
 		        printf("ACK made\n");
 
 		        printf("Sending ACK.....\n");
+				
+			// Reset timeouts
+			timeout = 0;
+			// Set jump for timeout
+			setjmp(timeoutbuf);
+			signal(SIGALRM, time_out);
+			// Set the alarm
+			alarm(ALARM_TIME);
+				
 		        // Send ACK after data is written to "output" file.
 		        send_status = sendto( fd, buffer, 4, 0,
 					(struct sockaddr *) &client_addr, sizeof(struct sockaddr_in) );
-		        if( send_status == -1 ) { perror("Failed to send data\n"); }
+		        if( send_status == -1 ) { 
+				timeout++;
+				perror("Failed to send data\n"); 
+				
+				if(timeout >= MAX_TIMEOUTS) {
+					// TODO: Do stuff to close the connection and let other clients connect
+					connected = 0;
+					continue;
+				}
+				else {
+					longjmp(timeoutbuf, 1);
+				}
+			}
 		        printf("ACK sent!!!\n");
 		    } // No need for terminating condition.
 		} else {
