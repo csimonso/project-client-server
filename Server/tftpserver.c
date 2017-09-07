@@ -195,6 +195,7 @@ int main(int argc, char *argv[]){
                 file = fopen(fileName, "rb");
                 request_handler(socketfd, recbuff, sendbuff, (struct sockaddr*)&clientAddress, &addrLen, file);
                 fclose(file);
+		break;
             }
             else if(recbuff[1] == '2'){
 		fprintf(stdout, "INSIDE IF FOR W REQUEST\n");

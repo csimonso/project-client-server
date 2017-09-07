@@ -66,7 +66,7 @@ void write_handler(int socketfd, char* buffer, struct sockaddr* addr, socklen_t 
             /* Reset */
             try = 0;
             /* Checks what opcode is */
-            if(buffer[1] == OP_DATA){
+            if(buffer[1] == '3'){
 		fprintf(stdout, "OPCODE is 3\n");
                 /* Resets */
                 try = 0;
@@ -89,7 +89,7 @@ void write_handler(int socketfd, char* buffer, struct sockaddr* addr, socklen_t 
             }
         }
         
-        if(recvlen < (MAX_DATA + 4) && buffer[1] == OP_DATA && recvlen > 0) break;
+        if(recvlen < (MAX_DATA + 4) && buffer[1] == '3' && recvlen > 0) break;
         
         /* Send Acknowledgement and increment try variable */
         if(recvlen <= 0){
@@ -108,6 +108,7 @@ void request_handler(int socketfd,char* recbuff,char* sendbuff,struct sockaddr* 
     int read = MAX_DATA;
     
     while(read == MAX_DATA) {
+	fprintf(stdout, "ENTERING OUTER PROBLEM LOOP\n");
         /* Zero out buffer */
         bzero(sendbuff, BUFSIZE);
         /* Read File */
@@ -122,6 +123,7 @@ void request_handler(int socketfd,char* recbuff,char* sendbuff,struct sockaddr* 
         
         /* Loop until an ack */
         while (try < TIMEOUT_NUMBER && ack == 0) {
+	    fprintf(stdout, "%i\n", ack);
             /* Opcode */
             sendbuff[0] = '0';
             sendbuff[1] = '3';
@@ -145,6 +147,7 @@ void request_handler(int socketfd,char* recbuff,char* sendbuff,struct sockaddr* 
                 try = 0;
                 /* Checks opcode */
                 if(recbuff[1] == '4'){
+		    fprintf(stdout, "ACK RECEIVED\n");
                     ack = 1;
                     if(curr_seq == '1') break;
                     else curr_seq++;
@@ -156,7 +159,7 @@ void request_handler(int socketfd,char* recbuff,char* sendbuff,struct sockaddr* 
             
         }
         /* Breaks if max tries is reached */
-        if(try == TIMEOUT_NUMBER) break;
+        //if(try == TIMEOUT_NUMBER) break;
     }
 }
 
@@ -182,14 +185,6 @@ int main(int argc, char *argv[]){
  	fprintf(stderr, "SOCKET ERROR\n");
     }    
     fprintf(stdout, "SOCKETFD = %i\n", socketfd);
-    //memset((char *) &clientAddr, 0, sizeof(clientAddr));
-    //clientAddr.sin_family = AF_INET;
-    //clientddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    //clientAddr.sin_port = htons(0);
-    //if (bind(socketfd, (struct sockaddr *)&clientAddr, sizeof(clientAddr)) < 0) {
-    //    perror("bind failed");
-    //    exit (0);
-    //}
     
     hp = gethostbyname("localhost");
     
@@ -231,7 +226,7 @@ int main(int argc, char *argv[]){
         fprintf(stdout, "SENDTO MAIN = %i\n", nBytes);
         /* Loop while request is zero */
         while (request == 0){
-            
+           
             recvlen = 0;
             
             /* Zero out the buffer */
@@ -241,7 +236,7 @@ int main(int argc, char *argv[]){
             recvlen = recvfrom(socketfd,recbuf,BUFSIZE,0,(struct sockaddr*)&serverAddr, &addrLen);
             fprintf(stdout, "RECVFROM MAIN = %i\n", recvlen);
             /* Checks if acknowedge received */
-            if(recvlen > 0 && recbuf[1] == OP_ACK) request = 1;
+            if(recvlen > 0 && recbuf[1] == '4') request = 1;
             fprintf(stdout, "ENTERING REQUEST HANDLER\n");
             /* Function call to handle the request */
             request_handler(socketfd, recbuf, sendbuf, (struct sockaddr*)&serverAddr, &addrLen, file);
