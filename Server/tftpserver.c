@@ -7,7 +7,7 @@
 #include <arpa/inet.h>
 
 //#define PORT_NUMBER 12345
-#define PORT_NUMBER 61011
+#define PORT_NUMBER 61111
 
 #define OP_RRQ 1
 #define OP_WRQ 2
@@ -146,7 +146,7 @@ void request_handler(int socketfd, char* recbuffer, char* sendbuffer, struct soc
 
 int main(int argc, char *argv[]){
 
-    printf("ENTERING MAIN");
+    fprintf(stdout, "ENTERING MAIN\n");
     
     int read,socketfd,nBytes,recvlen,request;
     
@@ -158,28 +158,34 @@ int main(int argc, char *argv[]){
     FILE *file;
     
     struct sockaddr_in clientAddress, serverAddress;
-    
+    struct hostent *hp;
     socklen_t addrLen = sizeof(clientAddress);
     
     socketfd = socket(AF_INET, SOCK_DGRAM, 0);
+    fprintf(stdout, "SOCKETFD = %i\n", socketfd);
     
-    memset((char *) &clientAddress, 0, sizeof(clientAddress));
-    clientAddress.sin_family = AF_INET;
-    clientAddress.sin_addr.s_addr = htonl(INADDR_ANY);
-    clientAddress.sin_port = htons(PORT_NUMBER);
+    hp = gethostbyname("localhost");
+    memcpy((void *)&serverAddress.sin_addr, hp->h_addr_list[0], hp->h_length);
+    //memset((char *) &serverAddress, 0, sizeof(serverAddress));
+    serverAddress.sin_family = AF_INET;
+    //serverAddress.sin_addr.s_addr = htonl(INADDR_ANY);
+    serverAddress.sin_port = htons(PORT_NUMBER);
+
     
-    nBytes = bind(socketfd, (struct sockaddr *) &clientAddress, sizeof(clientAddress));
-    
+    nBytes = bind(socketfd, (struct sockaddr *) &serverAddress, sizeof(serverAddress));
+    fprintf(stdout, "BIND = %i\n", nBytes);
     while(1){
+       	fprintf(stdout, "ENTER LOOP\n");
         bzero(recbuff, BUFSIZE);
         bzero(sendbuff, BUFSIZE);
         
         recvlen = 0;
         recvlen = recvfrom(socketfd, recbuff, BUFSIZE, 0, (struct sockaddr *) &clientAddress, &addrLen);
-        
+        fprintf(stdout, "REC LENGTH = %i\n", recvlen);
         if(recvlen > 0){
             
-            if(recbuff[1] == OP_RRQ){
+            if(recbuff[1] == '1'){
+		fprintf(stdout, "INSIDE IF");
                 //sprintf(fileName, "/serverFiles/%s", (recbuff+2));
                 fileName = recbuff+2;
                 file = fopen(fileName, "rb");
@@ -198,4 +204,4 @@ int main(int argc, char *argv[]){
     }
     return 0;
 }
-                                                                                                                                      1,2           Top
+                                                                                                                                   

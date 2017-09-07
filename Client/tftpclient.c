@@ -7,7 +7,7 @@
 #include <arpa/inet.h>
 
 //#define PORT_NUMBER 54321
-#define PORT_NUMBER 61011
+#define PORT_NUMBER 61111
 
 #define OP_RRQ 1
 #define OP_WRQ 2
@@ -44,7 +44,7 @@ int prev_seq(int curr_seq){
 
 /* Function to handle a write request */
 void write_handler(int socketfd, char* buffer, struct sockaddr* addr, socklen_t * addrLen, FILE* file ){
-    
+    fprintf(stdout, "IN WRITE HANDLER\n"); 
     /* Declare variables */
     int recvlen = 0;
     int try = 0;
@@ -53,13 +53,14 @@ void write_handler(int socketfd, char* buffer, struct sockaddr* addr, socklen_t 
     
     /* Loop the max number of times */
     while (try < TIMEOUT_NUMBER){
+	fprintf(stdout, "ENTERED LOOP\n");
         /* Reset Length */
         recvlen = 0;
         /* Zero out buffer */
         bzero(buffer, BUFSIZE);
         /* Receive from socket */
         recvlen = recvfrom(socketfd,buffer, BUFSIZE, 0,(struct sockaddr*)addr, addrLen);
-        
+        fprintf(stdout,"REV LENGTH = %i\n", recvlen);
         if(recvlen > 0) {
             /* Reset */
             try = 0;
@@ -160,7 +161,7 @@ void request_handler(int socketfd,char* recbuff,char* sendbuff,struct sockaddr* 
 /* Main function to run program and make function calls */
 int main(int argc, char *argv[]){
     
-    printf("ENTERING MAIN");
+    fprintf(stdout, "ENTERING MAIN\n");
 
     /* Variable Declarations */
     //char fileName[NAMESIZE];
@@ -176,9 +177,9 @@ int main(int argc, char *argv[]){
     /* Create a new socket */
     socketfd = socket(AF_INET, SOCK_DGRAM, 0);
     if(socketfd < 0 ) {
- 	printf("SOCKET ERROR");
+ 	fprintf(stderr, "SOCKET ERROR\n");
     }    
-    
+    fprintf(stdout, "SOCKETFD = %i\n", socketfd);
     //memset((char *) &clientAddr, 0, sizeof(clientAddr));
     //clientAddr.sin_family = AF_INET;
     //clientddr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -247,7 +248,7 @@ int main(int argc, char *argv[]){
     /* Checks if read mode */
     else if(strcmp(argv[1], "-r") == 0){
 
-        printf("STARTING r REQUEST");
+        fprintf(stdout, "STARTING r REQUEST\n");
 
         /* Cancatenate string for autograder submission */
         //fileName = strcat("/clientFiles/", argv[2]);
@@ -255,20 +256,28 @@ int main(int argc, char *argv[]){
         
         /* Open file */
         file = fopen(fileName, "w");
+	if(file == NULL) {
+		fprintf(stdout, "NULL FILE\n");
+	}
         
         /* Zero out the buffer */
         bzero(sendbuf, BUFSIZE);
         
         /* Opcode */
         sendbuf[0] = '0';
-        sendbuf[1] = OP_RRQ;
+        sendbuf[1] = '1';
         
         /* Move filename to buffer */
         strcpy(sendbuf+2, argv[2]);
-        
+	int i = 0;
+	if(sendbuf[0] == '0'){
+		fprintf(stdout, "YESSSS\n");
+	} 
         /* Send message on socket */
         nBytes = sendto(socketfd, sendbuf, strlen(sendbuf), 0, (struct sockaddr*)&serverAddr, addrLen);
         
+        fprintf(stdout, "SENDTO RETURN VAL = %i\n", nBytes);
+    	fprintf(stdout, "ENTERING WRITE HANDLER\n");
         /* Handle write request */
         write_handler(socketfd, recbuf, (struct sockaddr*)&serverAddr, &addrLen, file);
             
